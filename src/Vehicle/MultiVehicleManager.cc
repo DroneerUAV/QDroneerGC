@@ -32,6 +32,7 @@
 #include <QtCore/qapplicationstatic.h>
 #include <QtCore/QTimer>
 #include <QtQml/QQmlEngine>
+#include "SkydroidLink.h"
 
 QGC_LOGGING_CATEGORY(MultiVehicleManagerLog, "qgc.vehicle.multivehiclemanager")
 
@@ -142,6 +143,11 @@ void MultiVehicleManager::_vehicleHeartbeatInfo(LinkInterface* link, int vehicle
     }
 
     Vehicle *const vehicle = new Vehicle(link, vehicleId, componentId, (MAV_AUTOPILOT)vehicleFirmwareType, (MAV_TYPE)vehicleType, this);
+#ifdef Q_OS_ANDROID
+    if(qobject_cast<SkydroidLink*>(link)){
+        qobject_cast<SkydroidLink*>(link)->setDataRecv();
+    }
+#endif
     (void) connect(vehicle, &Vehicle::requestProtocolVersion, this, &MultiVehicleManager::_requestProtocolVersion);
     (void) connect(vehicle->vehicleLinkManager(), &VehicleLinkManager::allLinksRemoved, this, &MultiVehicleManager::_deleteVehiclePhase1);
     (void) connect(vehicle->parameterManager(), &ParameterManager::parametersReadyChanged, this, &MultiVehicleManager::_vehicleParametersReadyChanged);

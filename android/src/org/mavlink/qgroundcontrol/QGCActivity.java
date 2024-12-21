@@ -15,6 +15,19 @@ import android.os.storage.StorageVolume;
 
 import org.qtproject.qt.android.bindings.QtActivity;
 
+
+import com.skydroid.rcsdk.*;
+import com.skydroid.rcsdk.comm.CommListener;
+import com.skydroid.rcsdk.common.Uart;
+import com.skydroid.rcsdk.common.callback.*;
+import com.skydroid.rcsdk.common.error.SkyException;
+import com.skydroid.rcsdk.common.payload.*;
+import com.skydroid.rcsdk.common.pipeline.Pipeline;
+import com.skydroid.rcsdk.common.remotecontroller.ControlMode;
+import com.skydroid.rcsdk.key.AirLinkKey;
+import com.skydroid.rcsdk.key.RemoteControllerKey;
+import com.skydroid.rcsdk.utils.RCSDKUtils;
+
 public class QGCActivity extends QtActivity {
     private static final String TAG = QGCActivity.class.getSimpleName();
     private static final String SCREEN_BRIGHT_WAKE_LOCK_TAG = "QGroundControl";
@@ -24,6 +37,9 @@ public class QGCActivity extends QtActivity {
 
     private PowerManager.WakeLock m_wakeLock;
     private WifiManager.MulticastLock m_wifiMulticastLock;
+
+    private Pipeline pipeline = null;
+
 
     public QGCActivity() {
         m_instance = this;
@@ -48,6 +64,27 @@ public class QGCActivity extends QtActivity {
         setupMulticastLock();
 
         QGCUsbSerialManager.initialize(this);
+
+        RCSDKManager.INSTANCE.initSDK(this, new SDKManagerCallBack() {
+            @Override
+            public void onRcConnected() {
+                        Pipeline pipeline = PipelineManager.INSTANCE.createPipeline(Uart.UART0);
+                        pipeline.setOnCommListener(getCommListener(0, "SkyDroidLink"));
+                        PipelineManager.INSTANCE.connectPipeline(pipeline);
+                        m_instance.pipeline = pipeline;
+            }
+
+            @Override
+            public void onRcConnectFail(SkyException e) {
+
+            }
+
+            @Override
+            public void onRcDisconnect() {
+
+            }
+        });
+        RCSDKManager.INSTANCE.connectToRC();
     }
 
     @Override
@@ -59,8 +96,39 @@ public class QGCActivity extends QtActivity {
         } catch (final Exception e) {
             Log.e(TAG, "Exception onDestroy()", e);
         }
-
+        RCSDKManager.INSTANCE.disconnectRC();
+        Pipeline p = this.pipeline;
+        if (p != null){
+            PipelineManager.INSTANCE.disconnectPipeline(p);
+        }
         super.onDestroy();
+    }
+
+    private CommListener getCommListener(int type, String tag) {
+        return new CommListener() {
+                    @Override
+                    public void onConnectSuccess() {
+                            qgcLogDebug(tag + " connected");
+                    }
+
+                    @Override
+                    public void onConnectFail(SkyException e) {
+                            qgcLogDebug(tag + " connect Failed" + e);
+                    }
+
+                    @Override
+                    public void onDisconnect() {
+                            qgcLogDebug(tag + " disconnected");
+                    }
+
+                    @Override
+                    public void onReadData(byte[] bytes) {
+                            if (type == 0) {
+                                    jniFlightControlDataRecv(bytes,bytes.length);
+                            }
+
+                    }
+        };
     }
 
     /**
@@ -116,6 +184,14 @@ public class QGCActivity extends QtActivity {
         }
     }
 
+    public static boolean writeSkydroidData(byte[] data) {
+            //m_instance.qgcLogDebug("==========writeSkydroidData:"+data.length);
+            //Log.d(TAG, "==========writeSkydroidData:"+data.length);
+            if( m_instance.pipeline != null)
+                m_instance.pipeline.writeData(data);
+            return m_instance.pipeline != null;
+        }
+
     public static String getSDCardPath() {
         StorageManager storageManager = (StorageManager)m_instance.getSystemService(Activity.STORAGE_SERVICE);
         List<StorageVolume> volumes = storageManager.getStorageVolumes();
@@ -149,4 +225,5 @@ public class QGCActivity extends QtActivity {
     public native boolean nativeInit();
     public native void qgcLogDebug(final String message);
     public native void qgcLogWarning(final String message);
+    public native void jniFlightControlDataRecv(byte[] data, int len);
 }
