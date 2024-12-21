@@ -20,6 +20,9 @@
 #include "AutoConnectSettings.h"
 #include "TCPLink.h"
 #include "UDPLink.h"
+#ifdef Q_OS_ANDROID
+#include "SkydroidLink.h"
+#endif
 
 #ifdef QGC_ENABLE_BLUETOOTH
 #include "BluetoothLink.h"
@@ -152,6 +155,11 @@ bool LinkManager::createConnectedLink(SharedLinkConfigurationPtr &config)
 #ifndef QGC_AIRLINK_DISABLED
     case LinkConfiguration::AirLink:
         link = std::make_shared<AirLinkLink>(config);
+        break;
+#endif
+        #ifdef Q_OS_ANDROID
+case LinkConfiguration::TypeSkydroid:
+        link = std::make_shared<SkydroidLink>(config);
         break;
 #endif
     case LinkConfiguration::TypeLast:
@@ -394,8 +402,6 @@ void LinkManager::_addUDPAutoConnectLink()
     qCDebug(LinkManagerLog) << "New auto-connect UDP port added";
     UDPConfiguration* const udpConfig = new UDPConfiguration(_defaultUDPLinkName);
     udpConfig->setDynamic(true);
-    // FIXME: Default UDPConfiguration is set up for autoconnect
-    // udpConfig->setAutoConnect(true);
     SharedLinkConfigurationPtr config = addConfiguration(udpConfig);
     createConnectedLink(config);
 }
@@ -505,6 +511,9 @@ void LinkManager::_updateAutoConnectLinks()
 #endif
 #ifndef NO_SERIAL_LINK
     _addSerialAutoConnectLink();
+#endif
+#ifdef Q_OS_ANDROID
+    _addSkydroidLink();
 #endif
 }
 
@@ -728,6 +737,21 @@ void LinkManager::_createDynamicForwardLink(const char *linkName, const QString 
     createConnectedLink(config);
 
     qCDebug(LinkManagerLog) << "New dynamic MAVLink forwarding port added:" << linkName << " hostname:" << hostName;
+}
+
+void LinkManager::_addSkydroidLink()
+{
+#ifdef Q_OS_ANDROID
+    for (SharedLinkInterfacePtr &link : _rgLinks) {
+        const SharedLinkConfigurationPtr linkConfig = link->linkConfiguration();
+        if ((linkConfig->type() == LinkConfiguration::TypeSkydroid) && (linkConfig->name() == "Skydroid")) {
+            return;
+        }
+    }
+    SkydroidConfigure *conf = new SkydroidConfigure("Skydroid");
+    SharedLinkConfigurationPtr config = addConfiguration(conf);
+    createConnectedLink(config);
+#endif
 }
 
 bool LinkManager::isLinkUSBDirect(const LinkInterface *link)

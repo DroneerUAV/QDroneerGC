@@ -15,6 +15,9 @@
     #include "SerialLink.h"
 #endif
 #include "QGCLoggingCategory.h"
+#ifdef Q_OS_ANDROID
+#include "SkydroidLink.h"
+#endif
 
 QGC_LOGGING_CATEGORY(VehicleLinkManagerLog, "VehicleLinkManagerLog")
 
@@ -93,6 +96,12 @@ void VehicleLinkManager::_commRegainedOnLink(LinkInterface* link)
         if (noCommunicationLoss) {
             _communicationLost = false;
             emit communicationLostChanged(false);
+#ifdef Q_OS_ANDROID
+            SharedLinkInterfacePtr sharedLink = _primaryLink.lock();
+            if(sharedLink->linkConfiguration()->name() == "Skydroid"){
+                qobject_cast<SkydroidLink*>(sharedLink.get())->setDataRecv();
+            }
+#endif
         }
     }
 }

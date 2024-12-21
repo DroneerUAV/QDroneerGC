@@ -20,6 +20,14 @@ qt_add_library(Comms STATIC
     UDPLink.h
 )
 
+if(ANDROID)
+    target_sources(Comms
+        PRIVATE
+        SkydroidLink.h
+        SkydroidLink.cpp
+    )
+endif()
+
 target_link_libraries(Comms
     PRIVATE
         Qt6::Qml
